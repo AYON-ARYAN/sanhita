@@ -1,0 +1,21 @@
+# Legal AI RAG stack
+#   LLM        : Qwen via Ollama       (no cloud API, no API key)
+#   Embeddings : nomic-embed-text via Ollama
+#   Extraction : Apache Tika server    (vendor/tika/*.jar, needs Java 11+)
+#   Vectors    : Chroma (persistent)
+#
+# Deliberately NOT required any more:
+#   openai / sambanova  - replaced by Ollama's REST API
+#   sentence-transformers, torch, transformers - embeddings now come from Ollama
+#   llama-index*        - retrieval talks to Chroma directly
+#   faiss-cpu           - Chroma is the vector store; no second index
+#   groq                - generation is local via Ollama
+#   pdfplumber, PyMuPDF, python-docx, pandas - Tika handles every format
+
+flask>=3.0
+werkzeug>=3.0
+python-dotenv>=1.0
+requests>=2.31
+chromadb>=1.0
+nltk>=3.8          # sentence-aware chunking (falls back to regex if absent)
+networkx>=3.2      # knowledge graph (graph RAG)

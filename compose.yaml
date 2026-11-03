@@ -1,0 +1,62 @@
+# Sanhita — local legal RAG
+#
+#   docker compose up                      app + Tika, using YOUR Ollama
+#   docker compose --profile bundled-ollama up    everything in containers
+#
+# Why Ollama is not containerised by default: on macOS a container cannot
+# reach Metal, so the model runs on CPU and embedding is several times
+# slower. Using the host's Ollama keeps GPU acceleration. On Linux with an
+# NVIDIA GPU, the bundled-ollama profile is fine.
+
+services:
+  tika:
+    image: apache/tika:3.2.3.0-full
+    container_name: sanhita-tika
+    ports: ["9998:9998"]
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:9998/tika >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  app:
+    build: .
+    container_name: sanhita
+    ports: ["5002:5002"]
+    depends_on:
+      tika:
+        condition: service_started
+    environment:
+      # host.docker.internal resolves to your machine from inside the container
+      OLLAMA_HOST: ${OLLAMA_HOST:-http://host.docker.internal:11434}
+      TIKA_URL: http://tika:9998
+      LLM_MODEL: ${LLM_MODEL:-qwen2.5:3b-instruct}
+      EMBED_MODEL: ${EMBED_MODEL:-nomic-embed-text}
+      CHROMA_PATH: /app/index/chroma
+      GRAPH_PATH: /app/index/graph/graph.json
+      BM25_PATH: /app/index/bm25/bm25.pkl
+      DATA_DIRS: /app/data
+      ENABLE_GUARD: ${ENABLE_GUARD:-0}
+      TOP_K: ${TOP_K:-8}
+      LLM_NUM_CTX: ${LLM_NUM_CTX:-8192}
+    volumes:
+      - ./data:/app/data            # the corpus
+      - ./index:/app/index          # embeddings, graph, BM25 — survives rebuilds
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # needed on Linux; harmless on macOS
+    restart: unless-stopped
+
+  # Opt-in: everything self-contained. Slower on macOS (no Metal in containers).
+  ollama:
+    image: ollama/ollama:latest
+    container_name: sanhita-ollama
+    profiles: ["bundled-ollama"]
+    ports: ["11434:11434"]
+    volumes:
+      - ollama-models:/root/.ollama
+    restart: unless-stopped
+
+volumes:
+  ollama-models:

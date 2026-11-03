@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<properties>
+  <!-- Tika 3.x server tuning. The CLI no longer accepts per-task timeouts;
+       they live here. The server forks a child process per parse, so a task
+       that exceeds the budget is killed and restarted instead of hanging
+       the whole ingest run. -->
+  <server>
+    <params>
+      <!-- Max wall-clock for parsing a single document. -->
+      <taskTimeoutMillis>300000</taskTimeoutMillis>
+      <!-- Time allowed for the forked parser process to start up. -->
+      <forkedJvmArgs>
+        <arg>-Xmx2g</arg>
+        <arg>-Djava.awt.headless=true</arg>
+      </forkedJvmArgs>
+    </params>
+  </server>
+</properties>

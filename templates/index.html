@@ -1,0 +1,948 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Sanhita — Indian legal research</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='12' fill='%236E1423'/%3E%3Ctext x='32' y='46' font-family='Georgia,serif' font-size='40' font-weight='bold' fill='%23F5F6F4' text-anchor='middle'%3E%C2%A7%3C/text%3E%3C/svg%3E" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Serif+Devanagari:wght@500;600&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<style>
+:root{
+  --oxblood:#6E1423;      /* law-report binding */
+  --oxblood-soft:#8C2232;
+  --ink:#17181C;
+  --ink-2:#3A3F4A;
+  --slate:#5A6472;
+  --paper:#F5F6F4;
+  --paper-2:#EDEEEA;
+  --edge:#DCDDD7;
+  --gold:#A8812B;
+  --ok:#2F6B4F;
+  --sans:'Archivo',system-ui,-apple-system,sans-serif;
+  --serif:'Spectral',Georgia,serif;
+  --mono:'IBM Plex Mono',ui-monospace,Menlo,monospace;
+  --rail:252px; --eviw:372px;
+}
+*{box-sizing:border-box}
+html,body{height:100%}
+body{
+  margin:0;background:var(--paper);color:var(--ink);
+  font-family:var(--sans);font-size:15px;line-height:1.5;
+  -webkit-font-smoothing:antialiased;
+}
+button,input,textarea{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--oxblood);outline-offset:2px}
+
+/* ---------- shell ---------- */
+.app{display:grid;grid-template-columns:var(--rail) minmax(0,1fr) var(--eviw);
+  grid-template-rows:auto minmax(0,1fr);height:100vh}
+.app.rail-off{grid-template-columns:0 minmax(0,1fr) var(--eviw)}
+.app.ev-off{grid-template-columns:var(--rail) minmax(0,1fr) 0}
+.app.rail-off.ev-off{grid-template-columns:0 minmax(0,1fr) 0}
+/* Graph taken full width: rail and conversation collapse away entirely. */
+.app.graph-max{grid-template-columns:0 0 minmax(0,1fr)}
+.app.graph-max .rail,.app.graph-max .main{display:none}
+.app.dragging{cursor:col-resize;user-select:none}
+.app.dragging *{pointer-events:none}
+
+header{grid-column:1/-1;display:flex;align-items:center;gap:14px;
+  padding:0 16px;height:58px;background:var(--ink);color:#F2F1ED;
+  border-bottom:3px solid var(--oxblood)}
+.brand{display:flex;align-items:baseline;gap:10px;font-weight:700;letter-spacing:-.2px}
+.brand .mark{font-family:var(--serif);font-size:25px;line-height:1;color:#fff;
+  letter-spacing:.3px}
+.brand .deva{font-family:'Noto Serif Devanagari',var(--serif);font-size:17px;
+  color:var(--gold);font-weight:500;line-height:1}
+.brand small{font-weight:400;font-size:12.5px;color:#A9AEBA;letter-spacing:0}
+@media (max-width:860px){.brand .deva,.brand small{display:none}}
+.hdr-sp{flex:1}
+.counters{display:flex;gap:16px}
+.counters div{font-size:12px;color:#A9AEBA;text-align:right}
+.counters b{display:block;font-family:var(--mono);font-size:14px;color:#fff;font-weight:500}
+.iconbtn{background:transparent;border:1px solid #3A3F4A;color:#D6D8DF;
+  border-radius:7px;padding:6px 10px;cursor:pointer;font-size:12.5px}
+.iconbtn:hover{border-color:var(--gold);color:#fff}
+
+/* ---------- rail ---------- */
+.rail{grid-column:1;grid-row:2;background:var(--paper-2);
+  border-right:1px solid var(--edge);overflow-y:auto;display:flex;flex-direction:column}
+.app.rail-off .rail{display:none}
+.newbtn{margin:13px 13px 6px;padding:10px;background:var(--oxblood);color:#fff;border:0;
+  border-radius:8px;cursor:pointer;font-weight:600;font-size:14px}
+.newbtn:hover{background:var(--oxblood-soft)}
+.railhead{display:flex;align-items:center;gap:6px;padding:8px 13px 7px;
+  font-size:11.5px;color:var(--slate);font-weight:600}
+.railhead .sp{flex:1}
+.railhead button{background:none;border:1px solid var(--edge);border-radius:6px;color:var(--slate);
+  cursor:pointer;padding:2px 8px;font-size:11px}
+.railhead button:hover{border-color:var(--oxblood);color:var(--oxblood)}
+/* When the rail is hidden, leave a way back in that does not need the header. */
+.railshow{position:fixed;left:0;top:70px;z-index:40;display:none;
+  background:var(--oxblood);color:#fff;border:0;border-radius:0 8px 8px 0;
+  padding:9px 8px;cursor:pointer;font-size:12px;writing-mode:vertical-rl}
+.app.rail-off .railshow{display:block}
+.railshow:hover{background:var(--oxblood-soft)}
+.conv{display:flex;align-items:center;gap:7px;padding:9px 15px;cursor:pointer;
+  border-left:3px solid transparent;font-size:13.5px;color:var(--ink-2)}
+.conv:hover{background:#E4E5E0}
+.conv.on{background:#fff;border-left-color:var(--oxblood);color:var(--ink);font-weight:500}
+.conv span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.conv button{opacity:0;background:none;border:0;color:var(--slate);cursor:pointer;padding:0 2px}
+.conv:hover button{opacity:1}
+.conv button:hover{color:var(--oxblood)}
+
+/* ---------- conversation ---------- */
+.main{grid-column:2;grid-row:2;display:flex;flex-direction:column;min-width:0;
+  background:var(--paper)}
+.thread{flex:1;overflow-y:auto;padding:30px 24px 10px}
+.wrap{max-width:860px;margin:0 auto}
+
+/* A sanhita is a numbered compilation. Each exchange is set as a section:
+   section mark and Devanagari numeral in the margin, against the ruled
+   gutter a statute book prints its section numbers in. */
+.turn{position:relative;padding-left:58px}
+.turn::before{content:"";position:absolute;left:40px;top:4px;bottom:10px;
+  width:1px;background:var(--edge)}
+.secno{position:absolute;left:0;top:0;width:36px;text-align:right;
+  line-height:1.2;user-select:none}
+.secno b{display:block;font-family:var(--serif);font-size:17px;color:var(--oxblood);
+  font-weight:600}
+.secno i{display:block;font-family:'Noto Serif Devanagari',var(--serif);
+  font-size:12px;color:var(--gold);font-style:normal;margin-top:1px}
+.main.narrow .turn{padding-left:38px}
+.main.narrow .turn::before{left:26px}
+.main.narrow .secno{width:22px}
+.main.narrow .secno b{font-size:14px}
+.main.narrow .secno i{font-size:10px}
+
+.empty{max-width:660px;margin:6vh auto 0}
+.chapline{display:flex;align-items:center;gap:11px;margin-bottom:14px}
+.chapline span{font-family:var(--serif);font-size:13px;color:var(--oxblood);
+  font-weight:600;white-space:nowrap}
+.chapline em{font-family:'Noto Serif Devanagari',var(--serif);font-style:normal;
+  color:var(--gold);font-size:14px}
+.chapline hr{flex:1;border:0;border-top:1px solid var(--edge);margin:0}
+.empty h1{font-family:var(--serif);font-size:32px;line-height:1.2;margin:0 0 10px;
+  font-weight:600;letter-spacing:-.3px}
+.empty p{color:var(--slate);margin:0 0 26px;font-size:15.5px;max-width:52ch}
+.seeds{display:grid;gap:9px}
+.seed{position:relative;text-align:left;background:#fff;border:1px solid var(--edge);
+  border-left:3px solid var(--gold);border-radius:0 8px 8px 0;
+  padding:12px 14px 12px 44px;cursor:pointer;font-size:14px;color:var(--ink-2)}
+.seed:hover{border-left-color:var(--oxblood);color:var(--ink)}
+.seed::before{content:attr(data-n);position:absolute;left:13px;top:12px;
+  font-family:var(--serif);font-size:13px;color:var(--oxblood);font-weight:600}
+.seed b{display:block;font-weight:600;color:var(--ink);margin-bottom:2px;font-size:14.5px}
+
+.turn{margin-bottom:30px}
+.ask{font-family:var(--serif);font-size:19.5px;line-height:1.36;font-weight:600;
+  margin:0 0 6px;color:var(--ink)}
+.askfiles{font-size:12.5px;color:var(--slate);margin-bottom:14px}
+.reply{display:grid;grid-template-columns:minmax(0,1fr) 148px;gap:22px;align-items:start}
+.prose{font-family:var(--serif);font-size:16.5px;line-height:1.66;max-width:68ch;color:#1C1E24}
+.prose p{margin:0 0 .85em}
+.prose strong{font-weight:600}
+.prose ul,.prose ol{margin:0 0 .85em;padding-left:1.3em}
+.prose li{margin:.25em 0}
+.prose h3{font-family:var(--sans);font-size:13px;font-weight:700;color:var(--oxblood);
+  margin:1.5em 0 .5em;padding-bottom:4px;border-bottom:1px solid var(--edge)}
+.prose code{font-family:var(--mono);font-size:.88em;background:var(--paper-2);padding:1px 4px;border-radius:3px}
+.prose blockquote{margin:0 0 .85em;padding-left:14px;border-left:2px solid var(--edge);color:var(--ink-2)}
+
+/* marginal citations, the way a statute book sets section numbers */
+.main.narrow .reply{grid-template-columns:minmax(0,1fr)}
+.main.narrow .margin{border-top:1px solid var(--edge);padding-top:9px;margin-top:4px}
+.main.narrow .prose{font-size:15.5px}
+.main.narrow .ask{font-size:18px}
+.main.narrow .empty h1{font-size:24px;line-height:1.22}
+.main.narrow .empty p{font-size:14px}
+.main.narrow .seed{padding:10px 12px;font-size:13px}
+.main.narrow textarea#q{font-size:15px}
+.main.narrow .thread{padding:20px 16px 10px}
+.main.narrow .composer{padding:11px 16px 15px}
+.main.narrow .hint{flex-direction:column;gap:3px}
+.margin{font-size:11.5px;line-height:1.42;color:var(--slate);padding-top:5px}
+.margin .mh{font-weight:700;color:var(--ink-2);font-size:10.5px;margin-bottom:6px}
+.cite{display:block;width:100%;text-align:left;background:none;border:0;border-top:1px solid var(--edge);
+  padding:6px 0;cursor:pointer;color:var(--slate);font-size:11.5px;line-height:1.35}
+.cite:hover{color:var(--oxblood)}
+.cite i{font-family:var(--mono);font-style:normal;color:var(--oxblood);margin-right:4px}
+.cite em{display:block;font-style:normal;color:#8A919E;font-size:10.5px;margin-top:1px}
+
+/* Saving a draft or an answer is the point of producing it, so the actions
+   sit with the text rather than in a menu. */
+.acts{display:flex;align-items:center;gap:7px;margin-top:11px;flex-wrap:wrap}
+.acts span{font-size:10.5px;color:#8A919E;font-weight:600;margin-right:1px}
+.acts button{background:#fff;border:1px solid var(--edge);border-radius:7px;
+  padding:4px 10px;font-size:11.5px;color:var(--slate);cursor:pointer}
+.acts button:hover{border-color:var(--oxblood);color:var(--oxblood)}
+.acts button:disabled{opacity:.5;cursor:default}
+.draftmark{display:inline-block;background:#FBF3F4;border:1px solid #E6C9CE;
+  color:var(--oxblood);border-radius:5px;padding:1px 7px;font-size:10.5px;
+  font-weight:700;margin-bottom:7px}
+.working{display:flex;align-items:center;gap:9px;color:var(--slate);font-size:13.5px}
+.pulse{width:7px;height:7px;border-radius:50%;background:var(--oxblood)}
+@media (prefers-reduced-motion:no-preference){
+  .pulse{animation:bp 1.1s ease-in-out infinite}
+  @keyframes bp{0%,100%{opacity:.25;transform:scale(.8)}50%{opacity:1;transform:scale(1.15)}}
+}
+.failed{background:#FCF2F3;border:1px solid #E6C9CE;border-left:3px solid var(--oxblood);
+  padding:11px 13px;border-radius:0 7px 7px 0;font-size:14px;color:#5E1420;max-width:68ch}
+.failed b{display:block;margin-bottom:2px}
+
+/* ---------- composer ---------- */
+.main{position:relative}
+.tolatest{position:absolute;left:50%;transform:translateX(-50%) translateY(6px);
+  bottom:104px;z-index:25;display:none;background:var(--ink);color:#fff;border:0;
+  border-radius:20px;padding:7px 15px;font-size:12.5px;font-weight:600;cursor:pointer;
+  box-shadow:0 3px 10px rgba(23,24,28,.22);opacity:0;transition:opacity .15s,transform .15s}
+.tolatest.on{display:block;opacity:1;transform:translateX(-50%) translateY(0)}
+.tolatest:hover{background:var(--oxblood)}
+@media (prefers-reduced-motion:reduce){.tolatest{transition:none}}
+.composer{border-top:1px solid var(--edge);background:var(--paper);padding:13px 24px 18px}
+.cbox{max-width:860px;margin:0 auto;background:#fff;border:1px solid var(--edge);
+  border-radius:11px;padding:9px 11px}
+.cbox.drag{border-color:var(--oxblood);background:#FDF8F8}
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:7px}
+.chip{display:flex;align-items:center;gap:6px;background:var(--paper-2);border:1px solid var(--edge);
+  border-radius:20px;padding:3px 5px 3px 10px;font-size:12px;color:var(--ink-2);max-width:260px}
+.chip span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.chip button{background:none;border:0;color:var(--slate);cursor:pointer;line-height:1;font-size:15px;padding:0 3px}
+.chip button:hover{color:var(--oxblood)}
+/* Ask / Draft is a mode switch, not a setting: it changes which endpoint
+   the composer posts to and what comes back. */
+.modes{display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.seg{display:inline-flex;border:1px solid var(--edge);border-radius:8px;overflow:hidden}
+.seg button{background:#fff;border:0;padding:5px 14px;cursor:pointer;font-size:12.5px;
+  font-weight:600;color:var(--slate)}
+.seg button.on{background:var(--oxblood);color:#fff}
+.seg button+button{border-left:1px solid var(--edge)}
+#doctype{display:none;border:1px solid var(--edge);border-radius:8px;background:#fff;
+  padding:5px 9px;font-size:12.5px;color:var(--ink-2);max-width:320px}
+.composer.draft #doctype{display:inline-block}
+.crow{display:flex;align-items:flex-end;gap:9px}
+textarea#q{flex:1;border:0;resize:none;max-height:168px;min-height:26px;padding:4px 0;
+  font-family:var(--serif);font-size:16px;line-height:1.5;background:none}
+textarea#q:focus{outline:none}
+.send{background:var(--ink);color:#fff;border:0;border-radius:8px;padding:9px 17px;
+  cursor:pointer;font-weight:600;font-size:14px;flex:none}
+.send:hover:not(:disabled){background:var(--oxblood)}
+.send:disabled{opacity:.4;cursor:default}
+.attach{background:none;border:1px solid var(--edge);border-radius:8px;color:var(--slate);
+  cursor:pointer;padding:8px 11px;flex:none;font-size:13px}
+.attach:hover{border-color:var(--ink-2);color:var(--ink)}
+.hint{max-width:860px;margin:7px auto 0;font-size:11.5px;color:#8A919E;display:flex;gap:14px}
+
+/* ---------- evidence ---------- */
+.ev{grid-column:3;grid-row:2;background:#fff;border-left:1px solid var(--edge);
+  display:flex;flex-direction:column;min-width:0;position:relative}
+/* Drag this to trade conversation width for graph width. */
+.resizer{position:absolute;left:-4px;top:0;bottom:0;width:9px;cursor:col-resize;z-index:30;
+  display:flex;align-items:center;justify-content:center}
+.resizer::before{content:"";width:3px;height:40px;border-radius:2px;background:var(--edge);
+  transition:background .12s,height .12s}
+.resizer:hover::before,.resizer.on::before{background:var(--oxblood);height:72px}
+.app.ev-off .resizer,.app.graph-max .resizer{display:none}
+@media (prefers-reduced-motion:reduce){.resizer::before{transition:none}}
+.app.ev-off .ev{display:none}
+.evtabs{display:flex;border-bottom:1px solid var(--edge);flex:none}
+.evtabs button{flex:1;background:none;border:0;border-bottom:2px solid transparent;
+  padding:12px 4px;cursor:pointer;font-size:12.5px;font-weight:600;color:var(--slate)}
+.evtabs button.on{color:var(--oxblood);border-bottom-color:var(--oxblood)}
+.evtabs .grow{flex:0 0 auto;padding:12px 11px;border-bottom:2px solid transparent;color:var(--slate)}
+.evtabs .grow:hover{color:var(--oxblood)}
+.evbody{flex:1;overflow-y:auto;min-height:0}
+.pane{display:none;height:100%}
+.pane.on{display:block}
+#pane-graph.on{display:flex;flex-direction:column}
+.legend{display:flex;flex-wrap:wrap;gap:4px 10px;padding:10px 13px;border-bottom:1px solid var(--edge);flex:none}
+.lg{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--slate)}
+.lg i{width:8px;height:8px;border-radius:2px}
+#viz{flex:1;position:relative;min-height:240px}
+.vrow{display:flex;align-items:center;gap:6px;padding:7px 12px;border-bottom:1px solid var(--edge);
+  flex:none;font-size:11.5px;color:var(--slate)}
+.vrow button{background:#fff;border:1px solid var(--edge);border-radius:6px;color:var(--slate);
+  cursor:pointer;padding:3px 8px;font-size:11.5px}
+.vrow button:hover{border-color:var(--oxblood);color:var(--oxblood)}
+.vrow .sp{flex:1}
+#viz svg{display:block;width:100%;height:100%;cursor:grab}
+.viznote{position:absolute;left:0;right:0;bottom:0;padding:6px 12px;font-size:10.5px;
+  color:#8A919E;background:linear-gradient(transparent,#fff 55%)}
+.ph{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  padding:26px;text-align:center;color:var(--slate);font-size:13px}
+.node-label{font-family:var(--sans);font-size:9.5px;fill:var(--ink-2);pointer-events:none}
+.edge-label{font-family:var(--mono);font-size:8px;fill:#9AA2AF;pointer-events:none}
+
+.evsec{padding:13px 14px;border-bottom:1px solid var(--edge)}
+.evsec h4{margin:0 0 8px;font-size:11.5px;font-weight:700;color:var(--ink-2)}
+.rel{font-family:var(--mono);font-size:11px;color:var(--ink-2);padding:4px 0;
+  border-bottom:1px dotted var(--edge);word-break:break-word}
+.rel b{color:var(--oxblood);font-weight:500}
+.psg{padding:9px 0;border-bottom:1px dotted var(--edge)}
+.psg .pm{display:flex;justify-content:space-between;gap:8px;font-size:10.5px;margin-bottom:3px}
+.psg .pm span{color:var(--oxblood);font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.psg .pm em{font-family:var(--mono);font-style:normal;color:#9AA2AF;flex:none}
+.psg p{margin:0;font-family:var(--serif);font-size:12.5px;line-height:1.5;color:var(--ink-2)}
+.trace{display:flex;gap:9px;padding:7px 0}
+.trace i{width:7px;height:7px;border-radius:50%;background:var(--ok);margin-top:6px;flex:none}
+.trace div b{display:block;font-size:12.5px}
+.trace div span{font-size:11.5px;color:var(--slate)}
+.ent{display:inline-block;background:var(--paper-2);border:1px solid var(--edge);
+  border-radius:4px;padding:2px 7px;margin:0 4px 4px 0;font-size:11.5px;color:var(--ink-2)}
+.ev-empty{padding:26px 16px;color:var(--slate);font-size:13px;text-align:center}
+
+@media (max-width:1180px){:root{--eviw:320px}}
+@media (max-width:980px){
+  .app,.app.rail-off,.app.ev-off{grid-template-columns:minmax(0,1fr)}
+  .rail,.ev{display:none}
+  .main{grid-column:1}
+  .reply{grid-template-columns:minmax(0,1fr)}
+  .margin{border-top:1px solid var(--edge);padding-top:9px}
+  .thread{padding:20px 16px 10px}.composer{padding:11px 16px 15px}
+}
+</style>
+</head>
+<body>
+<div class="app" id="app">
+  <header>
+    <button class="iconbtn" id="railToggle" aria-label="Toggle conversations">☰</button>
+    <div class="brand">
+      <span class="mark">Sanhita</span>
+      <span class="deva" aria-hidden="true">संहिता</span>
+      <small>the code, searchable · runs locally</small>
+    </div>
+    <div class="hdr-sp"></div>
+    <div class="counters">
+      <div><b id="cChunks">—</b>passages</div>
+      <div><b id="cNodes">—</b>entities</div>
+      <div><b id="cEdges">—</b>relations</div>
+    </div>
+    <button class="iconbtn" id="evToggle">Evidence</button>
+  </header>
+
+  <button class="railshow" id="railShow" title="Show conversations">Conversations</button>
+
+  <nav class="rail" id="rail">
+    <button class="newbtn" id="newChat">New question</button>
+    <div class="railhead"><span>Recent</span><span class="sp"></span>
+      <button id="railHide" title="Hide this panel">Hide</button></div>
+    <div id="convs"></div>
+  </nav>
+
+  <main class="main">
+    <div class="thread" id="thread"><div class="wrap" id="wrap"></div></div>
+    <button class="tolatest" id="toLatest">Jump to latest &darr;</button>
+    <div class="composer">
+      <div class="cbox" id="cbox">
+        <div class="modes">
+          <span class="seg">
+            <button id="mAsk" class="on" type="button">Ask</button>
+            <button id="mDraft" type="button">Draft</button>
+          </span>
+          <select id="doctype" aria-label="Document type">
+            <option value="">Detect the document type</option>
+          </select>
+        </div>
+        <div class="chips" id="chips"></div>
+        <div class="crow">
+          <button class="attach" id="attach" title="Attach documents">Attach</button>
+          <textarea id="q" rows="1" placeholder="Ask about Indian law…"></textarea>
+          <button class="send" id="send">Ask</button>
+        </div>
+      </div>
+      <div class="hint">
+        <span>Enter to send · Shift+Enter for a new line</span>
+        <span>Drop PDF, DOCX, XLSX, CSV, TXT or HTML to ask about your own files</span>
+      </div>
+      <input type="file" id="file" multiple hidden
+        accept=".pdf,.docx,.doc,.rtf,.odt,.txt,.md,.csv,.tsv,.xlsx,.xls,.pptx,.ppt,.html,.htm,.xml,.epub" />
+    </div>
+  </main>
+
+  <aside class="ev" id="ev">
+    <div class="resizer" id="resizer" title="Drag to resize"
+         role="separator" aria-orientation="vertical" tabindex="0"
+         aria-label="Resize graph panel"></div>
+    <div class="evtabs">
+      <button data-p="graph" class="on">Graph</button>
+      <button data-p="psg">Passages</button>
+      <button data-p="trace">Trace</button>
+      <button class="grow" id="widen" title="Make the graph wider">&#8596;</button>
+    </div>
+    <div class="evbody">
+      <section class="pane on" id="pane-graph">
+        <div class="vrow">
+          <button id="gFull">Full screen</button>
+          <button id="gFit">Fit</button>
+          <button id="gZin">+</button>
+          <button id="gZout">&minus;</button>
+          <span class="sp"></span>
+          <span id="gCount"></span>
+        </div>
+        <div class="legend" id="legend"></div>
+        <div id="viz"><svg id="svg"></svg><div class="ph" id="vizPh">Loading graph…</div>
+          <div class="viznote" id="vizNote"></div></div>
+      </section>
+      <section class="pane" id="pane-psg"><div class="ev-empty">Ask something to see the passages it drew on.</div></section>
+      <section class="pane" id="pane-trace"><div class="ev-empty">Ask something to see how the answer was assembled.</div></section>
+    </div>
+  </aside>
+</div>
+
+<script>
+const $=id=>document.getElementById(id), esc=s=>String(s??'')
+  .replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+marked.setOptions({breaks:true});
+
+/* ---------- state (localStorage is best-effort only) ---------- */
+const LS='sanhita.v1', LS_OLD='lex.v1';
+let S={convs:[],active:null}, staged=[], graph={nodes:[],edges:[]}, hi=new Set(), busy=false;
+let mode='ask';
+function load(){
+  try{
+    let r=localStorage.getItem(LS);
+    if(!r){                       // carry over anything saved under the old name
+      const old=localStorage.getItem(LS_OLD);
+      if(old){ localStorage.setItem(LS, old); localStorage.removeItem(LS_OLD); r=old; }
+    }
+    if(r) S=JSON.parse(r);
+  }catch(e){}
+  
+  if(!S.convs?.length){ S={convs:[],active:null}; newConv(false);} 
+  if(!S.convs.find(c=>c.id===S.active)) S.active=S.convs[0].id; }
+function save(){ try{localStorage.setItem(LS,JSON.stringify(S));}catch(e){} }
+function cur(){ return S.convs.find(c=>c.id===S.active); }
+function newConv(render_=true){
+  const c={id:'c'+Date.now()+Math.random().toString(36).slice(2,6),title:'New question',turns:[]};
+  S.convs.unshift(c); S.active=c.id; save(); if(render_){drawConvs();drawThread();$('q').focus();}
+}
+
+/* ---------- conversation rail ---------- */
+function drawConvs(){
+  $('convs').innerHTML = S.convs.map(c=>
+    `<div class="conv ${c.id===S.active?'on':''}" data-id="${c.id}">
+       <span>${esc(c.title)}</span><button data-del="${c.id}" title="Delete">×</button></div>`).join('');
+}
+$('convs').addEventListener('click',e=>{
+  const del=e.target.closest('[data-del]');
+  if(del){ S.convs=S.convs.filter(c=>c.id!==del.dataset.del);
+    if(!S.convs.length) newConv(false); if(!S.convs.find(c=>c.id===S.active)) S.active=S.convs[0].id;
+    save(); drawConvs(); drawThread(); return; }
+  const row=e.target.closest('.conv'); if(!row) return;
+  S.active=row.dataset.id; save(); drawConvs(); drawThread(); stick=true; scroll(true);
+  const t=cur().turns[cur().turns.length-1]; if(t?.meta) paintEvidence(t.meta);
+});
+$('newChat').addEventListener('click',()=>newConv());
+
+/* ---------- thread ---------- */
+// Devanagari numerals, so the section numbering is in the script the
+// name itself is written in.
+const DEVA='०१२३४५६७८९';
+const deva = n => String(n).split('').map(d=>DEVA[+d]).join('');
+
+const SEEDS=[
+  ['Name and territory of the Union','What does the Constitution of India say about the name and territory of the Union?'],
+  ['Article 21 and NDPS bail','Does Article 21 apply to prolonged incarceration under the NDPS Act?'],
+  ['Cheque dishonour','What must be proved for an offence under Section 138 of the Negotiable Instruments Act?'],
+  ['Termination for convenience','How is a termination for convenience clause usually drafted?'],
+];
+function drawThread(){
+  const c=cur();
+  if(!c.turns.length){
+    $('wrap').innerHTML = `<div class="empty">
+      <div class="chapline"><span>PRELIMINARY</span><em>प्रारम्भिक</em><hr></div>
+      <h1>Ask a question about Indian law, and read the evidence beside the answer.</h1>
+      <p>Every answer is assembled from passages in the indexed corpus and from
+         relations between statutes, cases and parties. Each exchange is numbered
+         and kept, so the session reads back as a compiled record.</p>
+      <div class="seeds">${SEEDS.map(([t,q],i)=>
+        `<button class="seed" data-n="(${i+1})" data-q="${esc(q)}"><b>${esc(t)}</b>${esc(q)}</button>`).join('')}</div></div>`;
+    return;
+  }
+  $('wrap').innerHTML = c.turns.map((t,i)=>turnHTML(t,i)).join('');
+}
+function turnHTML(t,i){
+  const n=i+1;
+  const files=t.files?.length?`<div class="askfiles">${t.files.map(esc).join(' · ')}</div>`:'';
+  let body;
+  if(t.error) body=`<div class="failed"><b>That didn't go through</b>${esc(t.error)}</div>`;
+  else if(t.pending) body=`<div class="working"><span class="pulse"></span>${esc(t.stage||'Searching the corpus…')}</div>`;
+  else body=`<div class="reply"><div>
+        ${t.kind==='draft'?'<span class="draftmark">DRAFT &middot; FOR REVIEW</span>':''}
+        <div class="prose" id="prose${i}">${marked.parse(t.answer||'')}</div>
+        ${t.answer?`<div class="acts"><span>SAVE AS</span>
+          <button data-x="pdf"  data-t="${i}">PDF</button>
+          <button data-x="docx" data-t="${i}">Word</button>
+          <button data-x="md"   data-t="${i}">Markdown</button></div>`:''}
+      </div>${marginHTML(t,i)}</div>`;
+  return `<div class="turn">
+    <div class="secno" aria-hidden="true"><b>&sect;&#8201;${n}</b><i>${deva(n)}</i></div>
+    <div class="ask">${esc(t.q)}</div>${files}${body}</div>`;
+}
+function marginHTML(t,i){
+  const v=t.meta?.vector_results||[]; if(!v.length) return '<div class="margin"></div>';
+  const seen=new Set(), out=[];
+  v.forEach((r,n)=>{ if(seen.has(r.source))return; seen.add(r.source);
+    out.push(`<button class="cite" data-turn="${i}" data-n="${n}"><i>[${n+1}]</i>${esc(r.source)}
+      <em>similarity ${r.score}</em></button>`); });
+  return `<div class="margin"><div class="mh">AUTHORITIES</div>${out.join('')}</div>`;
+}
+$('wrap').addEventListener('click',e=>{
+  const seed=e.target.closest('.seed');
+  if(seed){ $('q').value=seed.dataset.q; grow(); ask(); return; }
+  const ex=e.target.closest('[data-x]');
+  if(ex){ exportTurn(+ex.dataset.t, ex.dataset.x, ex); return; }
+  const cite=e.target.closest('.cite');
+  if(cite){ showPane('psg'); $('ev').scrollIntoView({block:'nearest'});
+    $('app').classList.remove('ev-off'); }
+});
+
+/* ---------- composer ---------- */
+const qEl=$('q');
+function grow(){ qEl.style.height='auto'; qEl.style.height=Math.min(qEl.scrollHeight,168)+'px'; }
+qEl.addEventListener('input',grow);
+qEl.addEventListener('keydown',e=>{ if(e.key==='Enter'&&!e.shiftKey){e.preventDefault();ask();} });
+$('send').addEventListener('click',ask);
+
+function setMode(m){
+  mode = m;
+  $('mAsk').classList.toggle('on', m==='ask');
+  $('mDraft').classList.toggle('on', m==='draft');
+  document.querySelector('.composer').classList.toggle('draft', m==='draft');
+  qEl.placeholder = m==='draft'
+    ? 'Describe the document — e.g. a legal notice for a cheque of Rs 4,50,000 dishonoured…'
+    : 'Ask about Indian law…';
+  $('send').textContent = m==='draft' ? 'Draft' : 'Ask';
+}
+$('mAsk').addEventListener('click',()=>setMode('ask'));
+$('mDraft').addEventListener('click',()=>setMode('draft'));
+
+(async ()=>{                       // populate the document-type picker
+  try{
+    const d=await (await fetch('/doctypes')).json();
+    $('doctype').insertAdjacentHTML('beforeend',
+      (d.types||[]).map(t=>`<option value="${esc(t.key)}">${esc(t.name)}</option>`).join(''));
+  }catch(e){}
+})();
+$('attach').addEventListener('click',()=>$('file').click());
+$('file').addEventListener('change',e=>{ staged=staged.concat([...e.target.files]); e.target.value=''; drawChips(); });
+function drawChips(){
+  $('chips').innerHTML = staged.map((f,i)=>
+    `<span class="chip"><span>${esc(f.name)}</span><button data-i="${i}" aria-label="Remove">×</button></span>`).join('');
+}
+$('chips').addEventListener('click',e=>{ const b=e.target.closest('[data-i]'); if(!b)return;
+  staged.splice(+b.dataset.i,1); drawChips(); });
+const cbox=$('cbox');
+['dragenter','dragover'].forEach(k=>cbox.addEventListener(k,e=>{e.preventDefault();cbox.classList.add('drag');}));
+['dragleave','drop'].forEach(k=>cbox.addEventListener(k,e=>{e.preventDefault();cbox.classList.remove('drag');}));
+cbox.addEventListener('drop',e=>{ staged=staged.concat([...(e.dataTransfer?.files||[])]); drawChips(); });
+
+/* ---------- the one request: /chat streams evidence then tokens ---------- */
+async function ask(){
+  if(busy) return;
+  const text=qEl.value.trim(); if(!text) return;
+  const c=cur();
+  const turn={q:text,files:staged.map(f=>f.name),answer:'',pending:true,
+    kind: mode,
+    stage: mode==='draft' ? 'Pulling clauses from the clause bank…'
+         : (staged.length?'Reading your documents…':'Searching the corpus…')};
+  c.turns.push(turn);
+  if(c.turns.length===1) c.title=text.slice(0,42)+(text.length>42?'…':'');
+  qEl.value=''; grow(); busy=true; $('send').disabled=true;
+  stick = true; $('toLatest').classList.remove('on');   // a new ask re-attaches
+  drawConvs(); drawThread(); scroll(true);
+
+  const drafting = (mode==='draft');
+  const fd=new FormData();
+  if(drafting){
+    fd.append('request',text);
+    const dt=$('doctype').value; if(dt) fd.append('doctype',dt);
+  }else{
+    fd.append('query',text);
+    staged.forEach(f=>fd.append('document',f));
+  }
+  const had=staged.length; staged=[]; drawChips();
+
+  const idx=c.turns.length-1;
+  try{
+    // Relative URL on purpose: the previous UI hardcoded 127.0.0.1, so opening
+    // the page on localhost made every request cross-origin and it all failed.
+    const res=await fetch(drafting?'/draft':'/chat',{method:'POST',body:fd});
+    const rd=res.body.getReader(), dec=new TextDecoder();
+    let buf='', first=true;
+    for(;;){
+      const {value,done}=await rd.read(); if(done) break;
+      buf+=dec.decode(value,{stream:true});
+      let nl;
+      while((nl=buf.indexOf('\n'))>=0){
+        const line=buf.slice(0,nl).trim(); buf=buf.slice(nl+1);
+        if(!line) continue;
+        let ev; try{ ev=JSON.parse(line); }catch(_){ continue; }
+        if(ev.type==='meta'){
+          turn.meta=ev; turn.pending=false; paintEvidence(ev);
+          drawThread(); scroll();
+        } else if(ev.type==='section'){
+          turn.answer+=(turn.answer?'\n\n':'')+'### '+ev.source+'\n\n';
+          paint(idx,turn);
+        } else if(ev.type==='token'){
+          if(first){ turn.pending=false; first=false; }
+          turn.answer+=ev.t; paint(idx,turn);
+        } else if(ev.type==='error'){
+          turn.pending=false; turn.error=ev.message; drawThread();
+        }
+      }
+    }
+    if(!turn.answer && !turn.error) turn.error='No answer came back. Is the model still loading?';
+  }catch(err){
+    turn.pending=false;
+    turn.error=(err&&err.message)||'Could not reach the server. Is it still running?';
+  }finally{
+    turn.pending=false; busy=false; $('send').disabled=false;
+    $('toLatest').classList.remove('on');
+    save(); drawThread(); drawConvs(); scroll(); qEl.focus();
+    if(had) refreshStats();
+  }
+}
+function paint(i,t){
+  const el=$('prose'+i);
+  if(!el){ drawThread(); return; }
+  el.innerHTML=marked.parse(t.answer);
+  scroll();
+}
+/* Stick-to-bottom, not force-to-bottom.
+
+   The first version set scrollTop = scrollHeight on every streamed token, so
+   scrolling up during generation was impossible: the next token yanked you
+   back down. Now the view only follows the stream while you are already at
+   the bottom. Scroll up and it releases; scroll back down and it re-attaches.
+   A button appears meanwhile so you never have to hunt for the live end. */
+let stick = true, autoScrolling = false;
+const threadEl = $('thread');
+
+threadEl.addEventListener('scroll', () => {
+  if (autoScrolling) return;                   // ignore our own scrolling
+  const dist = threadEl.scrollHeight - threadEl.scrollTop - threadEl.clientHeight;
+  stick = dist < 80;                           // small slack for sub-pixel drift
+  $('toLatest').classList.toggle('on', !stick && busy);
+}, {passive: true});
+
+function scroll(force){
+  if (!force && !stick) return;
+  autoScrolling = true;
+  threadEl.scrollTop = threadEl.scrollHeight;
+  // clear on the next frame, after the scroll event has fired
+  requestAnimationFrame(() => { autoScrolling = false; });
+}
+
+function jumpToLatest(){
+  stick = true;
+  $('toLatest').classList.remove('on');
+  threadEl.scrollTo({top: threadEl.scrollHeight,
+                     behavior: matchMedia('(prefers-reduced-motion: reduce)').matches
+                               ? 'auto' : 'smooth'});
+}
+$('toLatest').addEventListener('click', jumpToLatest);
+
+/* ---------- saving a turn to a file ---------- */
+async function exportTurn(i, fmt, btn){
+  const t = cur().turns[i]; if(!t||!t.answer) return;
+  const was = btn.textContent; btn.disabled = true; btn.textContent = 'Saving…';
+  try{
+    const res = await fetch('/export', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({
+        format: fmt,
+        title: (t.q||'Sanhita document').slice(0,110),
+        markdown: t.answer,
+        sources: (t.meta?.vector_results||[]).map(r=>({source:r.source, score:r.score}))
+      })
+    });
+    if(!res.ok){ const d=await res.json().catch(()=>({})); throw new Error(d.error||res.statusText); }
+    const blob = await res.blob();
+    const cd = res.headers.get('content-disposition')||'';
+    const name = (cd.match(/filename=\"?([^\";]+)/)||[])[1] || `sanhita.${fmt}`;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = name; document.body.appendChild(a); a.click();
+    a.remove(); setTimeout(()=>URL.revokeObjectURL(url), 2000);
+    btn.textContent = 'Saved';
+    setTimeout(()=>{ btn.textContent = was; btn.disabled = false; }, 1400);
+  }catch(err){
+    btn.textContent = 'Failed';
+    setTimeout(()=>{ btn.textContent = was; btn.disabled = false; }, 1800);
+    console.error('export:', err);
+  }
+}
+
+/* ---------- evidence panel ---------- */
+$('ev').querySelector('.evtabs').addEventListener('click',e=>{
+  const b=e.target.closest('[data-p]'); if(b) showPane(b.dataset.p);
+});
+function showPane(p){
+  document.querySelectorAll('.evtabs button').forEach(b=>b.classList.toggle('on',b.dataset.p===p));
+  document.querySelectorAll('.pane').forEach(s=>s.classList.toggle('on',s.id==='pane-'+p));
+  if(p==='graph'&&graph.nodes.length) renderGraph();
+}
+function paintEvidence(m){
+  hi=new Set(m.highlighted_nodes||[]);
+  if(window.__hl) window.__hl();
+
+  const rels=m.graph_relations||[];
+  const ents=m.query_entities||[];
+  $('pane-trace').innerHTML = `
+    <div class="evsec"><h4>How this answer was assembled</h4>
+      ${(m.pipeline||[]).map(s=>`<div class="trace"><i></i><div><b>${esc(s.step)}</b>
+        <span>${esc(s.detail||'')}</span></div></div>`).join('')}</div>
+    <div class="evsec"><h4>Entities looked up in the graph</h4>
+      ${ents.length?ents.map(x=>`<span class="ent">${esc(x)}</span>`).join(''):
+        '<div style="color:#5A6472;font-size:12.5px">none matched</div>'}</div>
+    <div class="evsec"><h4>Relations used (${rels.length})</h4>
+      ${rels.length?rels.slice(0,40).map(r=>{
+        const mm=r.match(/^(.*?) --\[(.*?)\]--> (.*)$/);
+        return `<div class="rel">${mm?`${esc(mm[1])} <b>${esc(mm[2])}</b> ${esc(mm[3])}`:esc(r)}</div>`;
+      }).join(''):'<div style="color:#5A6472;font-size:12.5px">no graph relations matched</div>'}</div>`;
+
+  const v=m.vector_results||[];
+  $('pane-psg').innerHTML = v.length ? `<div class="evsec"><h4>Passages retrieved (${v.length})</h4>
+      ${v.map((r,i)=>`<div class="psg"><div class="pm"><span>[${i+1}] ${esc(r.source)}</span>
+        <em>${r.score}</em></div><p>${esc(r.chunk.slice(0,420))}${r.chunk.length>420?'…':''}</p></div>`).join('')}
+      </div>` : '<div class="ev-empty">No passages matched this question.</div>';
+
+  if(m.mode==='upload'&&(m.skipped||[]).length){
+    $('pane-psg').insertAdjacentHTML('afterbegin',
+      `<div class="evsec"><h4>Could not read</h4><div style="font-size:12.5px;color:#5A6472">${
+        m.skipped.map(esc).join(', ')}</div></div>`);
+  }
+}
+
+/* ---------- stats + graph ---------- */
+function tick(el,to){
+  const from=+String(el.textContent).replace(/[^0-9]/g,'')||0, t0=performance.now();
+  if(matchMedia('(prefers-reduced-motion: reduce)').matches){ el.textContent=to.toLocaleString(); return; }
+  (function f(now){ const k=Math.min(1,(now-t0)/450);
+    el.textContent=Math.round(from+(to-from)*(1-Math.pow(1-k,3))).toLocaleString();
+    if(k<1) requestAnimationFrame(f); })(t0);
+}
+async function refreshStats(){
+  try{
+    const s=await (await fetch('/stats')).json();
+    tick($('cChunks'),s.total_chunks||0); tick($('cNodes'),s.total_nodes||0);
+    tick($('cEdges'),s.total_edges||0);
+    const t=s.entity_types||{}, n=s.type_counts||{};
+    $('legend').innerHTML=Object.keys(t).map(k=>
+      `<span class="lg"><i style="background:${t[k]}"></i>${esc(k)}${n[k]?' '+n[k].toLocaleString():''}</span>`).join('');
+  }catch(e){}
+}
+async function loadGraph(){
+  try{
+    graph=await (await fetch('/graph?max_nodes=170')).json();
+    $('vizNote').textContent=graph.truncated
+      ? `Showing ${graph.nodes.length} of ${graph.total_nodes.toLocaleString()} entities, most connected first`:'';
+    renderGraph();
+  }catch(e){ $('vizPh').textContent='Could not load the graph.'; }
+}
+let sim, zoomBeh, svgSel;
+function renderGraph(){
+  const host=$('viz'), W=host.clientWidth, H=host.clientHeight;
+  const svg=d3.select('#svg'); svgSel=svg; svg.selectAll('*').remove();
+  if(!graph.nodes.length){ $('vizPh').style.display='flex';
+    $('vizPh').textContent='No graph yet. Build it with: python build_graph.py'; return; }
+  $('vizPh').style.display='none';
+  if(!W||!H) return;
+  $('gCount').textContent=`${graph.nodes.length} shown`;
+
+  svg.append('defs').append('marker').attr('id','ar').attr('viewBox','0 -5 10 10')
+    .attr('refX',17).attr('refY',0).attr('markerWidth',5).attr('markerHeight',5)
+    .attr('orient','auto').append('path').attr('d','M0,-5L10,0L0,5').attr('fill','#C9CCD3');
+
+  const g=svg.append('g');
+  zoomBeh=d3.zoom().scaleExtent([.1,8]).on('zoom',e=>{
+    g.attr('transform',e.transform);
+    if(window.__labels) window.__labels(e.transform.k);
+  });
+  svg.call(zoomBeh);
+  window.__gRoot=g;
+  const edges=graph.edges.map(e=>({...e}));   // forceLink mutates source/target
+
+  const link=g.append('g').selectAll('line').data(edges).join('line')
+    .attr('stroke','#D3D6DC').attr('stroke-width',d=>Math.min(2.6,1+(d.weight||1)*.2))
+    .attr('marker-end','url(#ar)');
+  const el=g.append('g').selectAll('text').data(edges).join('text')
+    .attr('class','edge-label').attr('text-anchor','middle').text(d=>d.relation);
+  const node=g.append('g').selectAll('circle').data(graph.nodes).join('circle')
+    .attr('r',d=>Math.min(13,4+Math.sqrt(d.connections||1)*1.9))
+    .attr('fill',d=>d.color).attr('stroke','#fff').attr('stroke-width',1.2)
+    .call(d3.drag()
+      .on('start',(e,d)=>{if(!e.active)sim.alphaTarget(.3).restart();d.fx=d.x;d.fy=d.y;})
+      .on('drag',(e,d)=>{d.fx=e.x;d.fy=e.y;})
+      .on('end',(e,d)=>{if(!e.active)sim.alphaTarget(0);d.fx=null;d.fy=null;}));
+  node.append('title').text(d=>`${d.id}\n${d.type} · ${d.connections} connections`);
+  // Label only the hubs at first. With every label drawn the view is a wall
+  // of overlapping text; the rest appear as you zoom in (see zoom handler).
+  const degs=graph.nodes.map(d=>d.connections||0).sort((a,b)=>b-a);
+  const cut=degs[Math.min(degs.length-1, Math.max(14, Math.floor(degs.length*0.12)))]||0;
+  const nl=g.append('g').selectAll('text').data(graph.nodes).join('text')
+    .attr('class','node-label').attr('text-anchor','middle').attr('dy',-11)
+    .text(d=>d.id.length>22?d.id.slice(0,21)+'…':d.id)
+    .attr('display',d=>(d.connections||0)>=cut?null:'none');
+  window.__labels=(k)=>{
+    // zoomed in -> show everything; zoomed out -> hubs only
+    nl.attr('display',d=>(k>=1.8||(d.connections||0)>=cut)?null:'none');
+    el.attr('display',k>=1.3?null:'none');
+  };
+  el.attr('display','none');   // edge labels are noise until you zoom
+
+  sim=d3.forceSimulation(graph.nodes)
+    .force('link',d3.forceLink(edges).id(d=>d.id).distance(86))
+    .force('charge',d3.forceManyBody().strength(-190))
+    .force('center',d3.forceCenter(W/2,H/2))
+    .force('collide',d3.forceCollide().radius(20))
+    .on('tick',()=>{
+      link.attr('x1',d=>d.source.x).attr('y1',d=>d.source.y)
+          .attr('x2',d=>d.target.x).attr('y2',d=>d.target.y);
+      el.attr('x',d=>(d.source.x+d.target.x)/2).attr('y',d=>(d.source.y+d.target.y)/2);
+      node.attr('cx',d=>d.x).attr('cy',d=>d.y);
+      nl.attr('x',d=>d.x).attr('y',d=>d.y);
+    });
+
+  window.__hl=()=>{
+    const on=hi.size>0;
+    node.attr('opacity',d=>!on?1:(hi.has(d.id)?1:.1))
+        .attr('stroke',d=>on&&hi.has(d.id)?'#6E1423':'#fff')
+        .attr('stroke-width',d=>on&&hi.has(d.id)?2.2:1.2);
+    nl.attr('opacity',d=>!on?1:(hi.has(d.id)?1:.1));
+    link.attr('stroke',d=>on&&hi.has(d.source.id)&&hi.has(d.target.id)?'#6E1423':'#D3D6DC')
+        .attr('opacity',d=>!on?1:(hi.has(d.source.id)&&hi.has(d.target.id)?.85:.12));
+    el.attr('opacity',d=>!on?1:(hi.has(d.source.id)&&hi.has(d.target.id)?1:.08));
+  };
+  window.__hl();
+}
+
+/* ---------- chrome: layout, resizing, graph controls ---------- */
+const app=$('app'), LAYOUT='sanhita.layout.v1', LAYOUT_OLD='lex.layout.v1';
+
+function saveLayout(){
+  try{ localStorage.setItem(LAYOUT, JSON.stringify({
+    rail: app.classList.contains('rail-off'),
+    ev:   app.classList.contains('ev-off'),
+    w:    document.documentElement.style.getPropertyValue('--eviw') || ''
+  })); }catch(e){}
+}
+function loadLayout(){
+  try{
+    const raw=localStorage.getItem(LAYOUT)||localStorage.getItem(LAYOUT_OLD)||'{}';
+    const l=JSON.parse(raw);
+    if(l.rail) app.classList.add('rail-off');
+    if(l.ev)   app.classList.add('ev-off');
+    if(l.w)    document.documentElement.style.setProperty('--eviw', l.w);
+  }catch(e){}
+}
+
+function toggleRail(){ app.classList.toggle('rail-off'); saveLayout(); sizeGraph(); }
+$('railToggle').addEventListener('click',toggleRail);
+$('railHide').addEventListener('click',toggleRail);
+$('railShow').addEventListener('click',toggleRail);
+
+$('evToggle').addEventListener('click',()=>{
+  app.classList.remove('graph-max');
+  app.classList.toggle('ev-off'); saveLayout();
+  setTimeout(()=>{ if(!app.classList.contains('ev-off')) renderGraph(); },240);
+});
+
+/* --- drag the divider: widen the graph, narrow the conversation --- */
+const rez=$('resizer');
+function setEvWidth(px){
+  const min=300, max=Math.min(window.innerWidth-320, window.innerWidth*0.8);
+  const w=Math.max(min, Math.min(max, px));
+  document.documentElement.style.setProperty('--eviw', w+'px');
+  return w;
+}
+let dragging=false, raf=0;
+function onMove(e){
+  if(!dragging) return;
+  const x = e.touches ? e.touches[0].clientX : e.clientX;
+  setEvWidth(window.innerWidth - x);
+  if(!raf) raf=requestAnimationFrame(()=>{ raf=0; sizeGraph(); });
+}
+function endDrag(){
+  if(!dragging) return;
+  dragging=false; rez.classList.remove('on'); app.classList.remove('dragging');
+  removeEventListener('mousemove',onMove); removeEventListener('mouseup',endDrag);
+  removeEventListener('touchmove',onMove); removeEventListener('touchend',endDrag);
+  saveLayout(); renderGraph();         // full relayout once, not on every frame
+}
+function startDrag(e){
+  if(app.classList.contains('ev-off')) return;
+  dragging=true; rez.classList.add('on'); app.classList.add('dragging');
+  addEventListener('mousemove',onMove); addEventListener('mouseup',endDrag);
+  addEventListener('touchmove',onMove,{passive:true}); addEventListener('touchend',endDrag);
+  e.preventDefault();
+}
+rez.addEventListener('mousedown',startDrag);
+rez.addEventListener('touchstart',startDrag,{passive:false});
+rez.addEventListener('dblclick',()=>{ setEvWidth(372); saveLayout(); renderGraph(); });
+rez.addEventListener('keydown',e=>{            // keyboard-accessible resizing
+  const cur=parseInt(getComputedStyle(document.documentElement)
+    .getPropertyValue('--eviw'))||372;
+  if(e.key==='ArrowLeft'){ setEvWidth(cur+40); saveLayout(); renderGraph(); e.preventDefault(); }
+  if(e.key==='ArrowRight'){ setEvWidth(cur-40); saveLayout(); renderGraph(); e.preventDefault(); }
+});
+
+/* cheap in-drag resize: stretch the svg without re-running the simulation */
+function sizeGraph(){
+  const host=$('viz'); if(!host||!svgSel) return;
+  svgSel.attr('width',host.clientWidth).attr('height',host.clientHeight);
+}
+
+/* --- one click to widen, and a full-screen graph --- */
+$('widen').addEventListener('click',()=>{
+  app.classList.remove('ev-off');
+  const cur=parseInt(getComputedStyle(document.documentElement)
+    .getPropertyValue('--eviw'))||372;
+  setEvWidth(cur < window.innerWidth*0.5 ? window.innerWidth*0.62 : 372);
+  saveLayout(); renderGraph();
+});
+$('gFull').addEventListener('click',()=>{
+  const on=app.classList.toggle('graph-max');
+  $('gFull').textContent = on ? 'Exit full screen' : 'Full screen';
+  showPane('graph');
+  setTimeout(renderGraph,60);
+});
+$('gFit').addEventListener('click',()=>{
+  if(svgSel&&zoomBeh) svgSel.transition().duration(300).call(zoomBeh.transform,d3.zoomIdentity);
+});
+$('gZin').addEventListener('click',()=>{
+  if(svgSel&&zoomBeh) svgSel.transition().duration(200).call(zoomBeh.scaleBy,1.4);
+});
+$('gZout').addEventListener('click',()=>{
+  if(svgSel&&zoomBeh) svgSel.transition().duration(200).call(zoomBeh.scaleBy,1/1.4);
+});
+addEventListener('keydown',e=>{
+  if(e.key==='Escape'&&app.classList.contains('graph-max')) $('gFull').click();
+});
+
+/* The conversation column can be squeezed on a wide screen by the divider,
+   so its layout keys off its own width rather than the viewport's. */
+const mainEl=document.querySelector('.main');
+function reflowMain(){ mainEl.classList.toggle('narrow', mainEl.clientWidth < 620); }
+if('ResizeObserver' in window){
+  new ResizeObserver(reflowMain).observe(mainEl);
+}else{
+  addEventListener('resize', reflowMain);
+}
+reflowMain();
+
+let rz; addEventListener('resize',()=>{clearTimeout(rz);rz=setTimeout(()=>{reflowMain();renderGraph();},220);});
+loadLayout();
+reflowMain();
+if(location.hash==='#evidence') showPane('graph');
+
+load(); drawConvs(); drawThread(); refreshStats(); loadGraph(); grow();
+setInterval(refreshStats, 30000);   // the index is still filling; keep counts live
+</script>
+</body>
+</html>

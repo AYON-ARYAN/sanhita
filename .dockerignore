@@ -1,0 +1,13 @@
+.venv/
+venv/
+venv311/
+index/
+data/
+legacy/
+docs/
+vendor/
+__pycache__/
+*.pyc
+.git/
+.DS_Store
+.remember/

@@ -1,0 +1,37 @@
+# ---- secrets -------------------------------------------------------------
+.env
+
+# ---- generated artefacts: large and rebuildable --------------------------
+# index/ is ~2 GB of embeddings, graph and BM25 cache. `make setup` rebuilds
+# it from data/. Never commit it.
+index/
+*.pkl
+
+# ---- the corpus ----------------------------------------------------------
+# ~176 MB, distributed separately. See "Getting the corpus" in the README.
+data/
+
+# ---- vendored binaries ---------------------------------------------------
+# tika-server is a 70 MB jar, downloaded on demand by tika_extract.py
+vendor/tika/*.jar
+vendor/tika/*.sha512
+vendor/tika/sums.txt
+
+# ---- python --------------------------------------------------------------
+.venv/
+venv/
+venv311/
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+
+# ---- editors / os --------------------------------------------------------
+.idea/
+.vscode/
+.DS_Store
+
+# ---- scratch -------------------------------------------------------------
+legacy/
+.remember/
+debug.py
