@@ -1,0 +1,70 @@
+Sanhita — corpus and prebuilt index
+===================================
+
+This archive holds the two things that are NOT in the GitHub repository,
+because they are too large: the corpus, and the index built from it.
+
+With these in place you can skip the hour-long embedding build entirely.
+
+SETUP
+-----
+
+1. Get the code and install Docker + Ollama:
+
+       git clone https://github.com/AYON-ARYAN/sanhita.git
+       cd sanhita
+
+   Ollama:  https://ollama.com     Docker:  https://docker.com
+
+2. Unzip this archive INTO that folder, so you end up with:
+
+       sanhita/
+       ├── data/      <- from this archive  (176 MB)
+       ├── index/     <- from this archive  (2.1 GB, prebuilt)
+       ├── app.py
+       └── ...
+
+3. Start Ollama on your own machine (not in Docker — on macOS a container
+   cannot reach the GPU, which makes everything several times slower):
+
+       ollama serve
+
+4. Pull the two models (about 2.3 GB, one time):
+
+       ollama pull qwen2.5:3b-instruct
+       ollama pull nomic-embed-text
+
+5. Start it:
+
+       make up
+
+   Then open http://localhost:5002
+
+   Check it picked up the index:
+
+       make status
+
+   It should report 121,112 chunks and 32,221 graph nodes. If it reports 0,
+   the index/ folder is in the wrong place — it must sit next to app.py.
+
+WHAT IS IN THE INDEX
+--------------------
+   121,112 embeddings   768-dim, from nomic-embed-text
+    32,221 graph nodes  cases, statutes, acts, courts, parties
+    38,852 relations    invokes, decided_by, part_of, party_to
+   121,112 BM25 docs    lexical index for hybrid retrieval
+
+Built from 413 files: 397 contract-clause CSVs, 4 Q&A datasets covering the
+IPC, CrPC and Constitution, and 12 court judgments.
+
+NOTES
+-----
+* The index was built with nomic-embed-text. Using a different embedding
+  model means rebuilding it — the vectors live in a different space, and the
+  builder will refuse to mix them.
+* Answers take roughly 30-60 seconds. That is a 3B model generating a few
+  hundred words, not a bug.
+* On a machine with 8 GB of memory, do not run an index rebuild while the web
+  app is up. The OS will kill one of them.
+* Everything runs locally. No API keys, no network calls, nothing leaves the
+  machine.

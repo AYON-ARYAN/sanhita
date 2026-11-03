@@ -10,6 +10,7 @@
 <link href="https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;1,400&family=Archivo:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&family=Noto+Serif+Devanagari:wght@500;600&display=swap" rel="stylesheet" />
 <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/marked/12.0.2/marked.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/dompurify/3.1.6/purify.min.js"></script>
 <style>
 :root{
   --oxblood:#6E1423;      /* law-report binding */
@@ -398,6 +399,19 @@ const $=id=>document.getElementById(id), esc=s=>String(s??'')
   .replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 marked.setOptions({breaks:true});
 
+/* Answer text is NOT trusted. It is written by the model, which quotes
+   retrieved passages and — on the upload path — the contents of whatever file
+   you dropped in. A .txt containing `<img src=x onerror=...>` survives
+   extraction verbatim, so rendering model output straight into innerHTML is a
+   live XSS vector, not a theoretical one. Everything goes through DOMPurify.
+   If the library fails to load, fall back to escaping rather than to raw HTML. */
+function mdSafe(src){
+  const html = marked.parse(src || '');
+  return (window.DOMPurify && DOMPurify.sanitize)
+    ? DOMPurify.sanitize(html, {USE_PROFILES: {html: true}})
+    : esc(src || '');
+}
+
 /* ---------- state (localStorage is best-effort only) ---------- */
 const LS='sanhita.v1', LS_OLD='lex.v1';
 let S={convs:[],active:null}, staged=[], graph={nodes:[],edges:[]}, hi=new Set(), busy=false;
@@ -473,7 +487,7 @@ function turnHTML(t,i){
   else if(t.pending) body=`<div class="working"><span class="pulse"></span>${esc(t.stage||'Searching the corpus…')}</div>`;
   else body=`<div class="reply"><div>
         ${t.kind==='draft'?'<span class="draftmark">DRAFT &middot; FOR REVIEW</span>':''}
-        <div class="prose" id="prose${i}">${marked.parse(t.answer||'')}</div>
+        <div class="prose" id="prose${i}">${mdSafe(t.answer)}</div>
         ${t.answer?`<div class="acts"><span>SAVE AS</span>
           <button data-x="pdf"  data-t="${i}">PDF</button>
           <button data-x="docx" data-t="${i}">Word</button>
@@ -610,7 +624,7 @@ async function ask(){
 function paint(i,t){
   const el=$('prose'+i);
   if(!el){ drawThread(); return; }
-  el.innerHTML=marked.parse(t.answer);
+  el.innerHTML=mdSafe(t.answer);
   scroll();
 }
 /* Stick-to-bottom, not force-to-bottom.

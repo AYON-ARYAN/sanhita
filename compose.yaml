@@ -39,6 +39,8 @@ services:
       BM25_PATH: /app/index/bm25/bm25.pkl
       DATA_DIRS: /app/data
       ENABLE_GUARD: ${ENABLE_GUARD:-0}
+      # inside the container; Docker's port mapping controls real exposure
+      HOST: 0.0.0.0
       TOP_K: ${TOP_K:-8}
       LLM_NUM_CTX: ${LLM_NUM_CTX:-8192}
     volumes:

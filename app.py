@@ -748,4 +748,11 @@ if __name__ == "__main__":
     print(f"Graph    : {config.GRAPH_PATH} "
           f"({graphrag.store.graph.number_of_nodes()} nodes, "
           f"{graphrag.store.graph.number_of_edges()} edges)")
-    app.run(debug=True, port=int(os.getenv("PORT", "5002")), use_reloader=False)
+    # The Werkzeug debugger exposes an interactive console that executes
+    # arbitrary Python, so it is opt-in rather than on. Binding defaults to
+    # loopback; the container sets HOST=0.0.0.0 because Docker's port mapping
+    # is what controls exposure there.
+    app.run(debug=os.getenv("FLASK_DEBUG") == "1",
+            host=os.getenv("HOST", "127.0.0.1"),
+            port=int(os.getenv("PORT", "5002")),
+            use_reloader=False)
